@@ -1,0 +1,2 @@
+gradio==4.38.1
+assemblyai==0.30.0
