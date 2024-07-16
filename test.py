@@ -1,90 +1,77 @@
 import os
 import gradio as gr
 import assemblyai as aai
-from dotenv import load_dotenv, find_dotenv
 from translate import Translator
-from elevenlabs.client import ElevenLabs
 from elevenlabs import VoiceSettings
+from elevenlabs.client import ElevenLabs
 import uuid
 from pathlib import Path
 
-
-load_dotenv(find_dotenv())
-
-
 def voice_to_voice(audio_file):
+    
+    #transcribe audio
+    transcription_response = audio_transcription(audio_file)
 
-    # transcribe audio
-    transcript  = audio_transcription(audio_file)
-
-    if transcript.error:
-        raise gr.Error(transcript.error)
+    if transcription_response.status == aai.TranscriptStatus.error:
+        raise gr.Error(transcription_response.error)
     else:
-        text = transcript.text
+        text = transcription_response.text
 
-    # translate text
-    hi_translation, ja_translation, es_translation = text_translation(text)
+    es_translation, tr_translation, ja_translation = text_translation(text)
 
-    # convert text to speech
-    hi_audio_path = text_to_speech(hi_translation)
-    ja_audio_path = text_to_speech(ja_translation)
-    es_audio_path = text_to_speech(es_translation)
+    es_audi_path = text_to_speech(es_translation)
+    tr_audi_path = text_to_speech(tr_translation)
+    ja_audi_path = text_to_speech(ja_translation)
 
-    hi_path = Path(hi_audio_path)
-    ja_path = Path(ja_audio_path)
-    es_path = Path(es_audio_path)
+    es_path = Path(es_audi_path)
+    tr_path = Path(tr_audi_path)
+    ja_path = Path(ja_audi_path)
 
-    return hi_path, ja_path, es_path
+    return es_path, tr_path, ja_path
 
 
 def audio_transcription(audio_file):
 
-    # Set the AssemblyAI API key
     aai.settings.api_key = os.environ.get("ASSEMBLYAI_API_KEY")
-    transcriber = aai.Transcriber()
-    transcript = transcriber.transcribe(audio_file)
-    return transcript.text
 
+    transcriber = aai.Transcriber()
+    transcription = transcriber.transcribe(audio_file)
+
+    return transcription
 
 def text_translation(text):
-
-    translator_hi = Translator(from_lang="eng", to_lang="hi")
-    hi_text = translator_hi.translate(text)
-
     
-    translator_ja = Translator(from_lang="eng", to_lang="ja")
-    ja_text = translator_ja.translate(text)
-
-    translator_es = Translator(from_lang="eng", to_lang="es")
+    translator_es = Translator(from_lang="en", to_lang="es")
     es_text = translator_es.translate(text)
 
+    translator_tr = Translator(from_lang="en", to_lang="tr")
+    tr_text = translator_tr.translate(text)
 
-    return hi_text, ja_text, es_text
+    translator_ja = Translator(from_lang="en", to_lang="ja")
+    ja_text = translator_ja.translate(text)
 
-
+    return es_text, tr_text, ja_text
 
 def text_to_speech(text):
-    ELEVENLABS_API_KEY = os.getenv("ELEVENLABSAI_API_KEY")
+
     client = ElevenLabs(
-    api_key=ELEVENLABS_API_KEY)
-    
+        api_key= "ELEVENLABSAI_API_KEY",
+    )
+
     # Calling the text_to_speech conversion API with detailed parameters
     response = client.text_to_speech.convert(
-        voice_id="kmSVBPu7loj4ayNinwWM", # Adam pre-made voice
+        voice_id="kmSVBPu7loj4ayNinwWM", #clone your voice on elevenlabs dashboard and copy the id
         optimize_streaming_latency="0",
         output_format="mp3_22050_32",
         text=text,
         model_id="eleven_multilingual_v2", # use the turbo model for low latency, for other languages use the `eleven_multilingual_v2`
         voice_settings=VoiceSettings(
             stability=0.5,
-            similarity_boost=1.0,
+            similarity_boost=0.8,
             style=0.5,
             use_speaker_boost=True,
         ),
     )
-
-    # uncomment the line below to play the audio back
-    # play(response)
 
     # Generating a unique file name for the output MP3 file
     save_file_path = f"{uuid.uuid4()}.mp3"
@@ -100,7 +87,6 @@ def text_to_speech(text):
     # Return the path of the saved audio file
     return save_file_path
 
-
 audio_input = gr.Audio(
     sources=["microphone"],
     type="filepath"
@@ -109,8 +95,7 @@ audio_input = gr.Audio(
 demo = gr.Interface(
     fn=voice_to_voice,
     inputs=audio_input,
-    outputs=[gr.Audio(label="Hindi"), gr.Audio(
-        label="Japanese"), gr.Audio(label="Spanish")]
+    outputs=[gr.Audio(label="Spanish"), gr.Audio(label="Turkish"), gr.Audio(label="Japanese")]
 )
 
 if __name__ == "__main__":
